@@ -41,6 +41,13 @@ class BLDCInterface final
 			mIface->getConfig(mHandle, &mValue);
 		}
 
+		operator T() {
+			if (mAutoPush) {
+				pull();
+			}
+			return mValue;
+		}
+
 		T* operator->() {
 			return &mValue;
 		}
