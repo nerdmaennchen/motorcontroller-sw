@@ -22,11 +22,11 @@ class BLDCInterface final
 	template<typename T>
 	class ConfigurationHandle {
 	public:
-		ConfigurationHandle(ConfigurationHandleBase* handle, BLDCInterface *iface, bool autopush) : mHandle(handle), mIface(iface), mAutoPush(autopush) {
+		ConfigurationHandle(ConfigurationHandleBase* handle, BLDCInterface *iface, bool autoSync) : mHandle(handle), mIface(iface), mAutoSync(autoSync) {
 			pull();
 		}
-		ConfigurationHandle(ConfigurationHandleBase* handle, BLDCInterface *iface, T const& value, bool autopush) : mHandle(handle), mIface(iface), mAutoPush(autopush), mValue(value) {
-			if (mAutoPush) {
+		ConfigurationHandle(ConfigurationHandleBase* handle, BLDCInterface *iface, T const& value, bool autoSync) : mHandle(handle), mIface(iface), mAutoSync(autoSync), mValue(value) {
+			if (mAutoSync) {
 				push();
 			} else {
 				pull();
@@ -42,7 +42,7 @@ class BLDCInterface final
 		}
 
 		operator T() {
-			if (mAutoPush) {
+			if (mAutoSync) {
 				pull();
 			}
 			return mValue;
@@ -54,19 +54,19 @@ class BLDCInterface final
 
 		T& operator=(T const& rhs) {
 			mValue = rhs;
-			if (mAutoPush) {
+			if (mAutoSync) {
 				push();
 			}
 			return mValue;
 		}
 
 		void setAutopush(bool autopush) {
-			mAutoPush = autopush;
+			mAutoSync = autopush;
 		}
 	private:
 		ConfigurationHandleBase* mHandle;
 		BLDCInterface *mIface;
-		bool mAutoPush {false};
+		bool mAutoSync {false};
 		T mValue;
 	};
 
@@ -78,12 +78,12 @@ public:
 	void getConfig(ConfigurationHandleBase const* handle, void* values);
 
 	template<typename T>
-	ConfigurationHandle<T> const getHandle(std::string const& name, bool autopush=false) {
-		return ConfigurationHandle<T>(&(mConfigurations[name]), this, autopush);
+	ConfigurationHandle<T> const getHandle(std::string const& name, bool autoSync=false) {
+		return ConfigurationHandle<T>(&(mConfigurations[name]), this, autoSync);
 	}
 	template<typename T>
-	ConfigurationHandle<T> const getHandle(std::string const& name, T const& initval, bool autopush=false) {
-		return ConfigurationHandle<T>(&(mConfigurations[name]), this, initval, autopush);
+	ConfigurationHandle<T> const getHandle(std::string const& name, T const& initval, bool autoSync=false) {
+		return ConfigurationHandle<T>(&(mConfigurations[name]), this, initval, autoSync);
 	}
 };
 
