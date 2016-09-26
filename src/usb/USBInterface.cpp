@@ -66,7 +66,7 @@ void USBInterface::close() {
 	//close the session
 	libusb_exit(m_usbContext);
 	m_usbContext = nullptr;
-	std::cout << "closed usb2Erolf" << std::endl;
+	std::cout << "closed motorcontroller" << std::endl;
 }
 
 

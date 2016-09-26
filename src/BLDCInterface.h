@@ -4,7 +4,7 @@
 #include <iostream>
 #include <istream>
 #include <map>
-#include <cxxabi.h>
+#include "util/demangle.h"
 
 namespace bldcInterface
 {
@@ -84,7 +84,7 @@ public:
 	ConfigurationHandle<T> const getHandle(std::string const& name, bool autoSync=false) {
 		ConfigurationHandleBase* handle = &(mConfigurations[name]);
 		if (handle->size != sizeof(T)) {
-			std::string demangledName = demangle(typeid(T).name());
+			std::string demangledName = demangle<T>();
 			std::cerr << "requesting a mapping of " << demangledName << " to " << handle->name << "of incompatible size! sizeof(" << demangledName << ")=" << sizeof(T) << " vs. " << handle->size << std::endl;
 			throw "Invalid Configuration Requested";
 		}
@@ -94,29 +94,11 @@ public:
 	ConfigurationHandle<T> const getHandle(std::string const& name, T const& initval, bool autoSync=false) {
 		ConfigurationHandleBase* handle = &(mConfigurations[name]);
 		if (handle->size != sizeof(T)) {
-			std::string demangledName = demangle(typeid(T).name());
+			std::string demangledName = demangle<T>();
 			std::cerr << "requesting a mapping of " << demangledName << " to " << handle->name << "of incompatible size! sizeof(" << demangledName << ")=" << sizeof(T) << " vs. " << handle->size << std::endl;
 			throw "Invalid Configuration Requested";
 		}
 		return ConfigurationHandle<T>(handle, this, initval, autoSync);
-	}
-
-private:
-	std::string demangle(const char* mangledName) {
-	    int status;
-	    char* result = abi::__cxa_demangle(mangledName, nullptr, nullptr, &status);
-	    switch(status) {
-	    case -1:
-	        std::cerr << "Out of memory!" << std::endl;
-	        exit(1);
-	    case -2:
-	        return mangledName;
-	    case -3: // Should never happen, but just in case?
-	        return mangledName;
-	    }
-	    std::string name = result;
-	    free(result);
-	    return name;
 	}
 };
 
