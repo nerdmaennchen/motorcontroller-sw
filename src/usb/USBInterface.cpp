@@ -83,10 +83,6 @@ void USBInterface::send(void const* data, std::size_t len)
 int USBInterface::receive(void* data, std::size_t len)
 {
 	int transfered = 0;
-	int error = 0;
-	do {
-		error = libusb_bulk_transfer(m_deviceHandle, 0x81, ((uint8_t*)data)+transfered, len-transfered, &transfered, 100);
-		len -= transfered;
-	} while (len and error == 0);
+	libusb_bulk_transfer(m_deviceHandle, 0x81, ((uint8_t*)data)+transfered, len-transfered, &transfered, 100);
 	return transfered;
 }

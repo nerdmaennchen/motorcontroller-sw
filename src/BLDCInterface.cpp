@@ -15,7 +15,7 @@ BLDCInterface::BLDCInterface()
 	std::array<uint8_t, 1> getCommand = {1};
 	mInterface.send(getCommand.data(), getCommand.size());
 
-	std::vector<char> payload(512);
+	std::vector<char> payload(64);
 	int received = mInterface.receive(payload.data(), payload.size());
 	uint16_t actualPayloadLen = 0;
 	actualPayloadLen |= (payload[1] << 0) & 0x00ff;

@@ -4,6 +4,7 @@
 #include <iostream>
 #include <istream>
 #include <map>
+#include <stdexcept>
 #include "util/demangle.h"
 
 namespace bldcInterface
@@ -86,7 +87,7 @@ public:
 		if (handle->size != sizeof(T)) {
 			std::string demangledName = demangle<T>();
 			std::cerr << "requesting a mapping of " << demangledName << " to " << handle->name << "of incompatible size! sizeof(" << demangledName << ")=" << sizeof(T) << " vs. " << handle->size << std::endl;
-			throw "Invalid Configuration Requested";
+			throw std::runtime_error("Invalid Configuration Requested");
 		}
 		return ConfigurationHandle<T>(handle, this, autoSync);
 	}
@@ -96,7 +97,7 @@ public:
 		if (handle->size != sizeof(T)) {
 			std::string demangledName = demangle<T>();
 			std::cerr << "requesting a mapping of " << demangledName << " to " << handle->name << "of incompatible size! sizeof(" << demangledName << ")=" << sizeof(T) << " vs. " << handle->size << std::endl;
-			throw "Invalid Configuration Requested";
+			throw std::runtime_error("Invalid Configuration Requested");
 		}
 		return ConfigurationHandle<T>(handle, this, initval, autoSync);
 	}
