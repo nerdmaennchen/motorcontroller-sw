@@ -81,9 +81,11 @@ public:
 	void setConfig(ConfigurationHandleBase const* handle, void const* values);
 	void getConfig(ConfigurationHandleBase const* handle, void* values);
 
+//	void printConfigurations();
+
 	template<typename T>
 	ConfigurationHandle<T> const getHandle(std::string const& name, bool autoSync=false) {
-		ConfigurationHandleBase* handle = &(mConfigurations[name]);
+		ConfigurationHandleBase* handle = &(mConfigurations.at(name));
 		if (handle->size != sizeof(T)) {
 			std::string demangledName = demangle<T>();
 			std::cerr << "requesting a mapping of " << demangledName << " to " << handle->name << "of incompatible size! sizeof(" << demangledName << ")=" << sizeof(T) << " vs. " << handle->size << std::endl;
@@ -93,7 +95,7 @@ public:
 	}
 	template<typename T>
 	ConfigurationHandle<T> const getHandle(std::string const& name, T const& initval, bool autoSync=false) {
-		ConfigurationHandleBase* handle = &(mConfigurations[name]);
+		ConfigurationHandleBase* handle = &(mConfigurations.at(name));
 		if (handle->size != sizeof(T)) {
 			std::string demangledName = demangle<T>();
 			std::cerr << "requesting a mapping of " << demangledName << " to " << handle->name << "of incompatible size! sizeof(" << demangledName << ")=" << sizeof(T) << " vs. " << handle->size << std::endl;
