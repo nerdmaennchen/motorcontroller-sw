@@ -1,6 +1,7 @@
 #pragma once
 
 #include "usb/USBInterface.h"
+#include <string.h>
 #include <iostream>
 #include <istream>
 #include <map>
@@ -9,6 +10,43 @@
 
 namespace bldcInterface
 {
+
+namespace serialProtocolHelpers
+{
+enum class InstructionType : uint8_t {
+	QUERRY           = 0, // Request a description of a publishable
+	READ             = 1, // pubish all publishables to which there is a subscription
+	SUBSCRIBE        = 2, // subscribe to a publishable
+	SET              = 3, // set the value of (one or more) publishables
+	QUERRY_RESPONSE  = 4, // a response to a query
+	READ_RESPONSE    = 5, // the read response
+};
+struct PacketHeader {
+	uint8_t targetID;
+	InstructionType instruction;
+} __attribute__((packed));
+struct QuerryReply {
+	uint8_t index;
+	uint8_t dataSize;
+};
+struct QueryResponsePacket {
+	PacketHeader header;
+	QuerryReply queryReply;
+} __attribute__((packed));
+
+
+struct QuerryInfo {
+	uint8_t targetID;
+	std::array<char, 60> descriptor;
+} __attribute__((packed));
+struct SetInfo {
+	uint8_t targetID;
+	uint8_t targetIdx;
+	uint8_t payloadLen;
+	std::array<char, 59> descriptor;
+} __attribute__((packed));
+
+}
 
 class BLDCInterface final
 {
@@ -29,13 +67,6 @@ public:
 		ConfigurationHandle(ConfigurationHandleBase* handle, BLDCInterface *iface, bool autoSync) : mHandle(handle), mIface(iface), mAutoSync(autoSync) {
 			pull();
 		}
-		ConfigurationHandle(ConfigurationHandleBase* handle, BLDCInterface *iface, T const& value, bool autoSync) : mHandle(handle), mIface(iface), mAutoSync(autoSync), mValue(value) {
-			if (mAutoSync) {
-				push();
-			} else {
-				pull();
-			}
-		}
 
 		void push() {
 			mIface->setConfig(mHandle, &mValue);
@@ -53,6 +84,9 @@ public:
 		}
 
 		T* operator->() {
+			if (mAutoSync) {
+				pull();
+			}
 			return &mValue;
 		}
 
@@ -74,6 +108,35 @@ public:
 		T mValue;
 	};
 
+	template<typename T>
+	class RemoteSettableConfigurationHandle {
+	public:
+		RemoteSettableConfigurationHandle(ConfigurationHandle<serialProtocolHelpers::SetInfo> wrapper, uint8_t targetID, uint8_t targetIdx) :
+			mWrapper(wrapper),
+			mTargetID(targetID),
+			mTargetIdx(targetIdx){}
+
+		void push() {
+			serialProtocolHelpers::SetInfo info;
+			info.targetID = mTargetID;
+			info.targetIdx  = mTargetIdx;
+			info.payloadLen = sizeof(T);
+			memcpy(info.descriptor.data(), &mValue, sizeof(mValue));
+			mWrapper = info;
+		}
+
+		T& operator=(T const& rhs) {
+			mValue = rhs;
+			push();
+			return mValue;
+		}
+	private:
+		ConfigurationHandle<serialProtocolHelpers::SetInfo> mWrapper;
+		uint8_t mTargetID;
+		uint8_t mTargetIdx;
+		T mValue;
+	};
+
 public:
 	BLDCInterface();
 	virtual ~BLDCInterface();
@@ -84,7 +147,7 @@ public:
 //	void printConfigurations();
 
 	template<typename T>
-	ConfigurationHandle<T> const getHandle(std::string const& name, bool autoSync=false) {
+	ConfigurationHandle<T> getHandle(std::string const& name, bool autoSync=true) {
 		ConfigurationHandleBase* handle = &(mConfigurations.at(name));
 		if (handle->size != sizeof(T)) {
 			std::string demangledName = demangle<T>();
@@ -93,15 +156,33 @@ public:
 		}
 		return ConfigurationHandle<T>(handle, this, autoSync);
 	}
+
 	template<typename T>
-	ConfigurationHandle<T> const getHandle(std::string const& name, T const& initval, bool autoSync=false) {
-		ConfigurationHandleBase* handle = &(mConfigurations.at(name));
-		if (handle->size != sizeof(T)) {
-			std::string demangledName = demangle<T>();
-			std::cerr << "requesting a mapping of " << demangledName << " to " << handle->name << "of incompatible size! sizeof(" << demangledName << ")=" << sizeof(T) << " vs. " << handle->size << std::endl;
-			throw std::runtime_error("Invalid Configuration Requested");
+	RemoteSettableConfigurationHandle<T> getRemoteSettableHandle(uint8_t deviceID, std::string const& name) {
+
+		serialProtocolHelpers::QuerryInfo info;
+		if (name.size()+1 > info.descriptor.size()) {
+			throw std::runtime_error("Cannot adress a remote configuration with a string descriptor of more than 60 characters (including terminating 0)");
 		}
-		return ConfigurationHandle<T>(handle, this, initval, autoSync);
+
+		auto serialQuerryHandle = getHandle<serialProtocolHelpers::QuerryInfo>("serial.interface.querry", true);
+		auto serialResponseHandle = getHandle<serialProtocolHelpers::QueryResponsePacket>("serial.interface.querry.reply", true);
+		info.targetID = deviceID;
+		memcpy(info.descriptor.data(), name.c_str(), name.size()+1);
+		serialQuerryHandle = info;
+
+		// wait for the response
+		serialProtocolHelpers::PacketHeader doneHeader = {0, serialProtocolHelpers::InstructionType::QUERRY_RESPONSE};
+		while (memcmp(&(serialResponseHandle->header), &doneHeader, sizeof(doneHeader)));
+
+		if (serialResponseHandle->queryReply.dataSize != sizeof(T)) {
+			throw std::runtime_error("The remote handle is of different size than the resquested type!");
+		}
+		uint8_t targetIdx = serialResponseHandle->queryReply.index;
+		return RemoteSettableConfigurationHandle<T>(
+				getHandle<serialProtocolHelpers::SetInfo>("serial.interface.set", true),
+				deviceID,
+				targetIdx);
 	}
 };
 
