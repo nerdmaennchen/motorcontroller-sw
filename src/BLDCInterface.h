@@ -6,6 +6,7 @@
 #include <istream>
 #include <map>
 #include <stdexcept>
+#include <unistd.h>
 #include "util/demangle.h"
 
 namespace bldcInterface
@@ -20,6 +21,7 @@ enum class InstructionType : uint8_t {
 	SET              = 3, // set the value of (one or more) publishables
 	QUERRY_RESPONSE  = 4, // a response to a query
 	READ_RESPONSE    = 5, // the read response
+	INVALID          = 0xff, // marked as invalid
 };
 struct PacketHeader {
 	uint8_t targetID;
@@ -158,22 +160,37 @@ public:
 	}
 
 	template<typename T>
-	RemoteSettableConfigurationHandle<T> getRemoteSettableHandle(uint8_t deviceID, std::string const& name) {
+	RemoteSettableConfigurationHandle<T> getRemoteSettableHandle(uint8_t deviceID, std::string const& name, int queryRetryCount = 10) {
 
 		serialProtocolHelpers::QuerryInfo info;
 		if (name.size()+1 > info.descriptor.size()) {
 			throw std::runtime_error("Cannot adress a remote configuration with a string descriptor of more than 60 characters (including terminating 0)");
 		}
 
-		auto serialQuerryHandle = getHandle<serialProtocolHelpers::QuerryInfo>("serial.interface.querry", true);
-		auto serialResponseHandle = getHandle<serialProtocolHelpers::QueryResponsePacket>("serial.interface.querry.reply", true);
+		auto serialQuerryHandle = getHandle<serialProtocolHelpers::QuerryInfo>("serial.interface.query", true);
+		auto serialResponseHandle = getHandle<serialProtocolHelpers::QueryResponsePacket>("serial.interface.query.reply", true);
 		info.targetID = deviceID;
 		memcpy(info.descriptor.data(), name.c_str(), name.size()+1);
-		serialQuerryHandle = info;
+		int tries = 0;
+		while (tries < queryRetryCount) {
+			serialQuerryHandle = info;
 
-		// wait for the response
-		serialProtocolHelpers::PacketHeader doneHeader = {0, serialProtocolHelpers::InstructionType::QUERRY_RESPONSE};
-		while (memcmp(&(serialResponseHandle->header), &doneHeader, sizeof(doneHeader)));
+			int counter = 0;
+			// wait for the response
+			while (serialResponseHandle->header.instruction == serialProtocolHelpers::InstructionType::INVALID and
+					counter < 10) {
+				usleep(100000);
+				++counter;
+			}
+			if (serialResponseHandle->header.instruction == serialProtocolHelpers::InstructionType::QUERRY_RESPONSE) {
+				break;
+			}
+			++tries;
+		}
+
+		if (serialResponseHandle->header.instruction != serialProtocolHelpers::InstructionType::QUERRY_RESPONSE) {
+			throw std::runtime_error("got invalid response from remote device!");
+		}
 
 		if (serialResponseHandle->queryReply.dataSize != sizeof(T)) {
 			throw std::runtime_error("The remote handle is of different size than the resquested type!");
